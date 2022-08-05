@@ -2,6 +2,8 @@ import random
 from sklearn import datasets
 import numpy as np
 import matplotlib.pyplot as plt
+from DBSCAN import DBSCAN
+from sklearn.cluster import AffinityPropagation
 
 # 正规化数据集 X
 def normalize(X, axis=-1, p=2):
@@ -102,22 +104,59 @@ class Kmeans():
 
 def main():
     # Load the dataset
-    X, y = datasets.make_blobs(n_samples=10000,
+    X, y = datasets.make_blobs(n_samples=1000,
                                n_features=3,
-                               centers=[[3, 3], [0, 0], [1, 1], [2, 2]],
+                               centers=[[3, 4], [0, 0], [1, 0], [2, 2]],
                                cluster_std=[0.2, 0.1, 0.2, 0.2],
                                random_state=9)
+    print(X)
+    print(y)
 
     # 用Kmeans算法进行聚类
     clf = Kmeans(k=4)
     y_pred = clf.predict(X)
+    print(X.shape, y_pred.shape, y_pred.shape)
+    print(y_pred)
+
+    dbscan = DBSCAN(0.11, 5)
+    C = dbscan.pointsClust(X)
+    print(C)
+    color = ['r', 'y', 'g', 'b', 'c', 'k', 'm']
+
+    clustering = AffinityPropagation(random_state=5).fit(X)
+    ap_class = clustering.cluster_centers_indices_
+    print(len(ap_class))
+    ap_labels = clustering.labels_
+    print(ap_labels)
+    import matplotlib.pyplot as plt
 
     # 可视化聚类效果
     fig = plt.figure(figsize=(12, 8))
+    plt.subplot(221)
+    plt.title("data distribution")
     plt.scatter(X[y == 0][:, 0], X[y == 0][:, 1])
     plt.scatter(X[y == 1][:, 0], X[y == 1][:, 1])
     plt.scatter(X[y == 2][:, 0], X[y == 2][:, 1])
     plt.scatter(X[y == 3][:, 0], X[y == 3][:, 1])
+    plt.subplot(222)
+    plt.title("k-means")
+    plt.scatter(X[y_pred == 0][:, 0], X[y_pred == 0][:, 1])
+    plt.scatter(X[y_pred == 1][:, 0], X[y_pred == 1][:, 1])
+    plt.scatter(X[y_pred == 2][:, 0], X[y_pred == 2][:, 1])
+    plt.scatter(X[y_pred == 3][:, 0], X[y_pred == 3][:, 1])
+    plt.subplot(223)
+    plt.title("dbscan")
+    for k, v in C.items():
+        # print(k, v)
+        plt.scatter(X[v][:, 0], X[v][:, 1], marker='o', color=color[int(k) % len(color)], label=int(k))
+
+    plt.subplot(224)
+    plt.title("affinity propagation")
+    if len(ap_class) == 0:
+        plt.text(0.2, 0.5, "Affinity propagation did not converge.")
+    else:
+        for i in range(len(ap_class)):
+            plt.scatter(X[ap_labels == i][:, 0], X[ap_labels == i][:, 1])
     plt.show()
 
 
