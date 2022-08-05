@@ -1,6 +1,8 @@
 import numpy as np
 import cv2
 import time
+from mean_shift import flow_cluster
+
 
 help_message = '''
 USAGE: optical_flow.py [<video_source>]
@@ -55,7 +57,7 @@ if __name__ == '__main__':
     try:
         fn = sys.argv[1]
     except:
-        fn = 0
+        fn = "1.mp4"
 
     # params for ShiTomasi corner detection
     feature_params = dict(maxCorners=100,
@@ -73,9 +75,9 @@ if __name__ == '__main__':
     fourcc = cv2.VideoWriter_fourcc(*'mp4v')
     out_cam = cv2.VideoWriter("cam.mp4", fourcc, 30, (w, h))
     out_flow1 = cv2.VideoWriter("flow1.mp4", fourcc, 30, (w, h))
-    out_hsv = cv2.VideoWriter("hsv.mp4", fourcc, 30, (w, h))
-    out_glitch= cv2.VideoWriter("glitch.mp4", fourcc, 30, (w, h))
-    out_flow2 = cv2.VideoWriter("flow2.mp4", fourcc, 30, (w, h))
+    # out_hsv = cv2.VideoWriter("hsv.mp4", fourcc, 30, (w, h))
+    # out_glitch= cv2.VideoWriter("glitch.mp4", fourcc, 30, (w, h))
+    # out_flow2 = cv2.VideoWriter("flow2.mp4", fourcc, 30, (w, h))
 
     ret, prev = cap.read()
     out_cam.write(prev)
@@ -89,6 +91,8 @@ if __name__ == '__main__':
 
     while True:
         ret, img = cap.read()
+        if not ret:
+            break
         out_cam.write(img)
         vis = img.copy()
         gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
@@ -96,60 +100,62 @@ if __name__ == '__main__':
         flow1 = None
         flow1 = cv2.calcOpticalFlowFarneback(prev=prevgray, next=gray, flow=flow1, pyr_scale=0.5, levels=5, winsize=15,
                                              iterations=3, poly_n=7, poly_sigma=1.5, flags=10)
+        # 开始计算聚类中心
+        flow_cluster(flow1)
         # PyrLK Optical Flow
-        p1, st, err = cv2.calcOpticalFlowPyrLK(prevImg=prevgray, nextImg=gray, prevPts=p0, nextPts=None, **lk_params)
+        # p1, st, err = cv2.calcOpticalFlowPyrLK(prevImg=prevgray, nextImg=gray, prevPts=p0, nextPts=None, **lk_params)
 
         # Select good point
-        if p1 is not None:
-            good_new = p1[st==1]
-            good_old = p0[st==1]
-            # draw the tracks
-        p0 = p1
-        for i, (new, old) in enumerate(zip(good_new, good_old)):
-            a, b = new.ravel()
-            c, d = old.ravel()
-            mask = cv2.line(mask, (int(a), int(b)), (int(c), int(d)), color[i].tolist(), 2)
-            frame = cv2.circle(img.copy(), (int(a), int(b)), 5, color[i].tolist(), -1)
-        flow2 = cv2.add(frame, mask)
-        cv2.imshow('frame', flow2)
-        out_flow2.write(flow2)
+        # if p1 is not None:
+        #     good_new = p1[st==1]
+        #     good_old = p0[st==1]
+        #     # draw the tracks
+        # p0 = p1
+        # for i, (new, old) in enumerate(zip(good_new, good_old)):
+        #     a, b = new.ravel()
+        #     c, d = old.ravel()
+        #     mask = cv2.line(mask, (int(a), int(b)), (int(c), int(d)), color[i].tolist(), 2)
+        #     frame = cv2.circle(img.copy(), (int(a), int(b)), 5, color[i].tolist(), -1)
+        # flow2 = cv2.add(frame, mask)
+        # cv2.imshow('frame', flow2)
+        # out_flow2.write(flow2)
         mask = np.zeros_like(img)
 
         prevgray = gray
         img_flow1 = draw_flow(gray, flow1)
         cv2.imshow('flow', img_flow1)
         out_flow1.write(img_flow1)
-        if show_hsv:
-            gray1 = cv2.cvtColor(draw_hsv(flow1), cv2.COLOR_BGR2GRAY)
-            thresh = cv2.threshold(gray1, 25, 255, cv2.THRESH_BINARY)[1]
-            thresh = cv2.dilate(thresh, None, iterations=2)
-            (cnts, _) = cv2.findContours(thresh.copy(), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-
-            # loop over the contours
-            for c in cnts:
-                # if the contour is too small, ignore it
-                (x, y, w, h) = cv2.boundingRect(c)
-                if 100 < w < 900 and 100 < h < 680:
-                    cv2.rectangle(vis, (x, y), (x + w, y + h), (0, 255, 0), 4)
-                    cv2.putText(vis, str(time.time()), (x, y), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 1)
-
-            cv2.imshow('Image', vis)
-            out_hsv.write(vis)
-        if show_glitch:
-            cur_glitch = warp_flow(cur_glitch, flow1)
-            cv2.imshow('glitch', cur_glitch)
-            out_glitch.write(cur_glitch)
-            cur_glitch = img.copy()
+        # if show_hsv:
+        #     gray1 = cv2.cvtColor(draw_hsv(flow1), cv2.COLOR_BGR2GRAY)
+        #     thresh = cv2.threshold(gray1, 25, 255, cv2.THRESH_BINARY)[1]
+        #     thresh = cv2.dilate(thresh, None, iterations=2)
+        #     (cnts, _) = cv2.findContours(thresh.copy(), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        #
+        #     # loop over the contours
+        #     for c in cnts:
+        #         # if the contour is too small, ignore it
+        #         (x, y, w, h) = cv2.boundingRect(c)
+        #         if 100 < w < 900 and 100 < h < 680:
+        #             cv2.rectangle(vis, (x, y), (x + w, y + h), (0, 255, 0), 4)
+        #             cv2.putText(vis, str(time.time()), (x, y), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 1)
+        #
+        #     cv2.imshow('Image', vis)
+        #     out_hsv.write(vis)
+        # if show_glitch:
+        #     cur_glitch = warp_flow(cur_glitch, flow1)
+        #     cv2.imshow('glitch', cur_glitch)
+        #     out_glitch.write(cur_glitch)
+        #     cur_glitch = img.copy()
         ch = 0xFF & cv2.waitKey(5)
         if ch == 27:
             break
-        if ch == ord('1'):
-            show_hsv = not show_hsv
-            print('HSV flow visualization is', ['off', 'on'][show_hsv])
-        if ch == ord('2'):
-            show_glitch = not show_glitch
-            if show_glitch:
-                cur_glitch = img.copy()
-            print('glitch is', ['off', 'on'][show_glitch])
+        # if ch == ord('1'):
+        #     show_hsv = not show_hsv
+        #     print('HSV flow visualization is', ['off', 'on'][show_hsv])
+        # if ch == ord('2'):
+        #     show_glitch = not show_glitch
+        #     if show_glitch:
+        #         cur_glitch = img.copy()
+        #     print('glitch is', ['off', 'on'][show_glitch])
 
     cv2.destroyAllWindows()
